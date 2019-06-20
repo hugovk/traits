@@ -1328,10 +1328,6 @@ class TypedReadOnly(TraitType):
             raise TraitError(message.format(name, object.__class__.__name__))
 
 
-# Create a singleton instance as the trait:
-TypedReadOnly = TypedReadOnly()
-
-
 # -------------------------------------------------------------------------------
 #  'Disallow' trait:
 # -------------------------------------------------------------------------------
