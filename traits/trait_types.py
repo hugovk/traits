@@ -1329,7 +1329,7 @@ class TypedReadOnly(TraitType):
 
 
 # Create a singleton instance as the trait:
-TypedReadOnly = ReadOnly()
+TypedReadOnly = TypedReadOnly()
 
 
 # -------------------------------------------------------------------------------
