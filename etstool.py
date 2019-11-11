@@ -13,15 +13,14 @@
 Tasks for Test Runs
 ===================
 
-This file is intended to be used with a python environment with the
-click library to automate the process of setting up test environments
-and running the test within them.  This improves repeatability and
+This file is intended to be used in a Python environment equipped with the
+click library, to automate the process of setting up test environments
+and running the tests within them.  This improves repeatability and
 reliability of tests be removing many of the variables around the
 developer's particular Python environment.  Test environment setup and
-package management is performed using `EDM
-http://docs.enthought.com/edm/`_
+package management is performed using `EDM http://docs.enthought.com/edm/`_
 
-To use this to run you tests, you will need to install EDM and click
+To use this to run your tests, you will need to install EDM and click
 into your working environment.  You will also need to have git
 installed to access required source code from github repositories.
 You can then do::
@@ -38,22 +37,22 @@ to run tests in that environment.  You can remove the environment with::
 
 If you make changes you will either need to remove and re-install the
 environment or manually update the environment using ``edm``, as
-the install performs a ``python setup.py install`` rather than a ``develop``,
+the install performs a ``pip install .`` rather than a ``pip install -e .``,
 so changes in your code will not be automatically mirrored in the test
-environment.  You can update with a command like::
+environment.  You can update with::
 
-    edm run --environment ... -- python setup.py install
+    python etstool.py update --runtime=...
 
-You can run all three tasks at once with::
+You can run install, test and cleanup all at once with::
 
     python etstool.py test-clean --runtime=...
 
-which will create, install, run tests, and then clean-up the environment.  And
+which will create, install, run tests, and then clean up the environment.  And
 you can run tests in all supported runtimes::
 
     python etstool.py test-all
 
-Currently supported runtime values are ``2.7`` and ``3.5``.  Not all
+Currently supported runtime values are ``2.7``, ``3.5`` and ``3.6``.  Not all
 combinations of runtimes will work, but the tasks will fail with
 a clear error if that is the case.
 
@@ -88,11 +87,17 @@ import click
 common_dependencies = {
     "coverage",
     "cython",
-    "Sphinx",
+    "enthought_sphinx_theme",
     "nose",
     "numpy",
     "pyqt",
+    "Sphinx",
     "traitsui",
+}
+
+# Dependencies we install from source for testing
+source_dependencies = {
+    "traitsui"
 }
 
 # Python 2-specific dependencies.
@@ -100,39 +105,104 @@ python2_dependencies = {
     "mock",
 }
 
-supported_runtimes = ["2.7.13", "3.5.2", "3.6.0"]
+supported_runtimes = ["2.7", "3.5", "3.6"]
+default_runtime = "3.6"
+
+github_url_fmt = "git+http://github.com/enthought/{0}.git#egg={0}"
+
+
+# Click options shared by multiple commands.
+edm_option = click.option(
+    "--edm",
+    help=(
+        "Path to the EDM executable to use. The default is to use the first "
+        "EDM found in the path. The EDM executable can also be specified "
+        "by setting the ETSTOOL_EDM environment variable."
+    ),
+    envvar="ETSTOOL_EDM",
+)
+runtime_option = click.option(
+    '--runtime',
+    default=default_runtime,
+    type=click.Choice(supported_runtimes),
+    show_default=True,
+    help="Python runtime version for the development environment",
+)
+editable_option = click.option(
+    '--editable/--not-editable',
+    default=False,
+    help="Install main package in 'editable' mode?  [default: --not-editable]",
+)
+
 
 @click.group()
 def cli():
+    """
+    Developer and CI support commands for Traits.
+    """
     pass
 
 
 @cli.command()
-@click.option('--runtime', default='3.6')
-@click.option('--environment', default=None)
+@edm_option
+@runtime_option
+@click.option('--environment', default=None, help='Name of the EDM environment to install')
+@editable_option
 @click.option('--docs/--no-docs', default=True)
-def install(runtime, environment, docs):
+@click.option('--source/--no-source', default=False)
+def install(edm, runtime, environment, editable, docs, source):
     """ Install project and dependencies into a clean EDM environment and
     optionally install further dependencies required for building
     documentation.
 
     """
-    parameters = get_parameters(runtime, environment)
+    parameters = get_parameters(edm, runtime, environment)
     dependencies = common_dependencies.copy()
     if runtime.startswith("2."):
         dependencies.update(python2_dependencies)
     packages = ' '.join(dependencies)
-    # edm commands to setup the development environment
+
+    # EDM commands to setup the development environment. The installation
+    # of TraitsUI from EDM installs Traits as a dependency, so we need
+    # to explicitly uninstall it before re-installing from source.
     commands = [
-        "edm environments create {environment} --force --version={runtime}",
-        "edm install -y -e {environment} " + packages,
-        "edm run -e {environment} -- python -m pip install --no-deps .",
+        "{edm} environments create {environment} --force --version={runtime}",
+        "{edm} install -y -e {environment} " + packages,
+        "{edm} plumbing remove-package -e {environment} traits",
     ]
+    if editable:
+        install_cmd = (
+            "{edm} run -e {environment} -- "
+            "python -m pip install --editable . --no-dependencies"
+        )
+    else:
+        install_cmd = (
+            "{edm} run -e {environment} -- "
+            "python -m pip install . --no-dependencies"
+        )
+    commands.append(install_cmd)
+
     click.echo("Creating environment '{environment}'".format(**parameters))
     execute(commands, parameters)
+    if source:
+        commands = [
+            "{edm} plumbing remove-package "
+            "--environment {environment} --force "
+            + ' '.join(source_dependencies)
+        ]
+        execute(commands, parameters)
+        source_pkgs = [
+            github_url_fmt.format(pkg) for pkg in source_dependencies]
+        commands = [
+            "python -m pip install {pkg} --no-deps".format(pkg=pkg)
+            for pkg in source_pkgs
+        ]
+        commands = [
+            "{edm} run -e {environment} -- " + command for command in commands]
+        execute(commands, parameters)
     if docs:
         commands = [
-            "edm run -e {environment} -- pip install -r "
+            "{edm} run -e {environment} -- pip install -r "
             "ci-doc-requirements.txt --no-dependencies"
         ]
         execute(commands, parameters)
@@ -142,19 +212,20 @@ def install(runtime, environment, docs):
 
 
 @cli.command()
-@click.option('--runtime', default='3.6')
-@click.option('--environment', default=None)
-def test(runtime, environment):
+@edm_option
+@runtime_option
+@click.option('--environment', default=None, help='Name of EDM environment to test.')
+def test(edm, runtime, environment):
     """ Run the test suite in a given environment.
 
     """
-    parameters = get_parameters(runtime, environment)
+    parameters = get_parameters(edm, runtime, environment)
 
     environ = {}
     environ['PYTHONUNBUFFERED'] = "1"
 
     commands = [
-        "edm run -e {environment} -- coverage run -p -m nose.core -v traits "
+        "{edm} run -e {environment} -- coverage run -p -m nose.core -v traits "
         "--nologcapture"
     ]
 
@@ -173,15 +244,16 @@ def test(runtime, environment):
 
 
 @cli.command()
-@click.option('--runtime', default='3.6')
-@click.option('--environment', default=None)
-def docs(runtime, environment):
+@edm_option
+@runtime_option
+@click.option('--environment', default=None, help='Name of EDM environment to build docs for.')
+def docs(edm, runtime, environment):
     """ Build the html documentation.
 
     """
-    parameters = get_parameters(runtime, environment)
+    parameters = get_parameters(edm, runtime, environment)
     commands = [
-        "edm run -e {environment} -- sphinx-build -b html "
+        "{edm} run -e {environment} -- sphinx-build -b html "
         "-d build/doctrees source build/html",
     ]
     with do_in_existingdir(os.path.join(os.getcwd(), 'docs')):
@@ -189,16 +261,17 @@ def docs(runtime, environment):
 
 
 @cli.command()
-@click.option('--runtime', default='3.6')
-@click.option('--environment', default=None)
-def cleanup(runtime, environment):
+@edm_option
+@runtime_option
+@click.option('--environment', default=None, help='Name of EDM environment to remove.')
+def cleanup(edm, runtime, environment):
     """ Remove a development environment.
 
     """
-    parameters = get_parameters(runtime, environment)
+    parameters = get_parameters(edm, runtime, environment)
     commands = [
-        "edm run -e {environment} -- python setup.py clean",
-        "edm environments remove {environment} --purge -y"
+        "{edm} run -e {environment} -- python setup.py clean",
+        "{edm} environments remove {environment} --purge -y",
     ]
     click.echo("Cleaning up environment '{environment}'".format(**parameters))
     execute(commands, parameters)
@@ -206,12 +279,16 @@ def cleanup(runtime, environment):
 
 
 @cli.command(name='test-clean')
-@click.option('--runtime', default='3.6')
-def test_clean(runtime):
+@edm_option
+@runtime_option
+def test_clean(edm, runtime):
     """ Run tests in a clean environment, cleaning up afterwards
 
     """
     args = ['--runtime={}'.format(runtime)]
+    if edm is not None:
+        args.append('--edm={}'.format(edm))
+
     try:
         install(args=args, standalone_mode=False)
         test(args=args, standalone_mode=False)
@@ -221,27 +298,43 @@ def test_clean(runtime):
 
 
 @cli.command()
-@click.option('--runtime', default='3.6')
-@click.option('--environment', default=None)
-def update(runtime, environment):
+@edm_option
+@runtime_option
+@click.option('--environment', default=None, help='Name of EDM environment to update.')
+@editable_option
+def update(edm, runtime, environment, editable):
     """ Update/Reinstall package into environment.
 
     """
-    parameters = get_parameters(runtime, environment)
-    commands = ["edm run -e {environment} -- python setup.py install"]
+    parameters = get_parameters(edm, runtime, environment)
+    if editable:
+        install_cmd = (
+            "{edm} run -e {environment} -- "
+            "python -m pip install --editable . --no-dependencies"
+        )
+    else:
+        install_cmd = (
+            "{edm} run -e {environment} -- "
+            "python -m pip install . --no-dependencies"
+        )
+    commands = [install_cmd]
     click.echo("Re-installing in  '{environment}'".format(**parameters))
     execute(commands, parameters)
     click.echo('Done update')
 
 
 @cli.command(name='test-all')
-def test_all():
+@edm_option
+def test_all(edm):
     """ Run test_clean across all supported environment combinations.
 
     """
     error = False
     for runtime in supported_runtimes:
         args = ['--runtime={}'.format(runtime)]
+        if edm is not None:
+            args.append('--edm={}'.format(edm))
+
         try:
             test_clean(args, standalone_mode=True)
         except SystemExit as exc:
@@ -257,17 +350,20 @@ def test_all():
 # ----------------------------------------------------------------------------
 
 
-def get_parameters(runtime, environment):
-    """ Set up parameters dictionary for format() substitution """
-    parameters = {
-        'runtime': runtime,
-        'environment': environment
-    }
+def get_parameters(edm, runtime, environment):
+    """ Set up parameters dictionary for format() substitution. """
+
+    if edm is None:
+        edm = locate_edm()
+
     if environment is None:
-        parameters['environment'] = 'traits-test-{runtime}'.format(
-            **parameters
-        )
-    return parameters
+        environment = 'traits-test-{runtime}'.format(runtime=runtime)
+
+    return {
+        "edm": edm,
+        "runtime": runtime,
+        "environment": environment,
+    }
 
 
 @contextmanager
@@ -304,6 +400,7 @@ def do_in_tempdir(files=(), capture_files=()):
         os.chdir(old_path)
         rmtree(path)
 
+
 @contextmanager
 def do_in_existingdir(path):
     """ Changes into an existing directory given by path.
@@ -334,5 +431,44 @@ def execute(commands, parameters):
             sys.exit(1)
 
 
+def locate_edm():
+    """
+    Locate an EDM executable if it exists, else raise an exception.
+
+    Returns the first EDM executable found on the path. On Windows, if that
+    executable turns out to be the "edm.bat" batch file, replaces it with the
+    executable that it wraps: the batch file adds another level of command-line
+    mangling that interferes with things like specifying version restrictions.
+
+    Returns
+    -------
+    edm : str
+        Path to the EDM executable to use.
+
+    Raises
+    ------
+    click.ClickException
+        If no EDM executable is found in the path.
+    """
+    # Once Python 2 no longer needs to be supported, we should use
+    # shutil.which instead.
+    which_cmd = "where" if sys.platform == "win32" else "which"
+    try:
+        cmd_output = subprocess.check_output([which_cmd, "edm"])
+    except subprocess.CalledProcessError:
+        raise click.ClickException(
+            "This script requires EDM, but no EDM executable was found.")
+
+    # Don't try to be clever; just use the first candidate.
+    edm_candidates = cmd_output.decode("utf-8").splitlines()
+    edm = edm_candidates[0]
+
+    # Resolve edm.bat on Windows.
+    if sys.platform == "win32" and os.path.basename(edm) == "edm.bat":
+        edm = os.path.join(os.path.dirname(edm), "embedded", "edm.exe")
+
+    return edm
+
+
 if __name__ == '__main__':
-    cli()
+    cli(prog_name="python etstool.py")

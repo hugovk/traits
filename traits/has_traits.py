@@ -105,9 +105,6 @@ CHECK_INTERFACES = 0
 #  require Traits to work, because they subclass Traits, but the Traits
 #  meta-class programming support uses them, so Traits can't be subclassed
 #  until they are defined.
-#
-#  Note: We need to look at whether the Category support could be used to
-#        allow us to implement this better.
 # -------------------------------------------------------------------------------
 
 
@@ -503,6 +500,7 @@ class MetaHasTraits(type):
 
         return klass
 
+    @classmethod
     def add_listener(cls, listener, class_name=""):
         """ Adds a class creation listener.
 
@@ -511,17 +509,14 @@ class MetaHasTraits(type):
         """
         MetaHasTraits._listeners.setdefault(class_name, []).append(listener)
 
-    add_listener = classmethod(add_listener)
-
+    @classmethod
     def remove_listener(cls, listener, class_name=""):
         """ Removes a class creation listener.
         """
         MetaHasTraits._listeners[class_name].remove(listener)
 
-    remove_listener = classmethod(remove_listener)
 
-
-def update_traits_class_dict(class_name, bases, class_dict, is_category):
+def update_traits_class_dict(class_name, bases, class_dict, is_category=False):
     """ Processes all of the traits related data in the class dictionary.
 
     This is called during the construction of a new HasTraits class. The first
@@ -537,8 +532,12 @@ def update_traits_class_dict(class_name, bases, class_dict, is_category):
         The base classes for the HasTraits class.
     class_dict : dict
         A dictionary of class members.
-    is_category : bool
-        Whether this is a Category subclass.
+    is_category : bool, optional
+        Whether this is a Category subclass. The default is False.
+
+    .. deprecated:: 5.2
+       The category extension mechanism is deprecated, and the is_category
+       option will be removed in a future version of Traits.
 
     """
     # Create the various class dictionaries, lists and objects needed to
@@ -1174,6 +1173,7 @@ class HasTraits(CHasTraits):
     #  Adds/Removes a trait instance creation monitor:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def trait_monitor(cls, handler, remove=False):
         """Adds or removes the specified *handler* from the list of active
         monitors.
@@ -1204,12 +1204,11 @@ class HasTraits(CHasTraits):
         if index < 0:
             _HasTraits_monitors.append((cls, handler))
 
-    trait_monitor = classmethod(trait_monitor)
-
     # ---------------------------------------------------------------------------
     #  Add a new class trait (i.e. applies to all instances and subclasses):
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def add_class_trait(cls, name, *trait):
         """ Adds a named trait attribute to this class.
 
@@ -1241,8 +1240,7 @@ class HasTraits(CHasTraits):
         for subclass in cls.trait_subclasses(True):
             subclass._add_class_trait(name, trait, True)
 
-    add_class_trait = classmethod(add_class_trait)
-
+    @classmethod
     def _add_class_trait(cls, name, trait, is_subclass):
         # Get a reference to the class's dictionary and 'prefix' traits:
         class_dict = cls.__dict__
@@ -1309,14 +1307,18 @@ class HasTraits(CHasTraits):
         # Finally, add the new trait to the class trait dictionary:
         class_traits[name] = trait
 
-    _add_class_trait = classmethod(_add_class_trait)
-
     # ---------------------------------------------------------------------------
     #  Adds a 'category' to the class:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def add_trait_category(cls, category):
         """ Adds a trait category to a class.
+
+        .. deprecated:: 5.2
+           The category extension mechanism is deprecated, and this method
+           will be removed in a future version of Traits.
+
         """
         if issubclass(category, HasTraits):
             cls._add_trait_category(
@@ -1334,12 +1336,11 @@ class HasTraits(CHasTraits):
                 if not hasattr(cls, name):
                     setattr(cls, name, value)
 
-    add_trait_category = classmethod(add_trait_category)
-
     # ---------------------------------------------------------------------------
     #  Adds a 'category' to the class:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def _add_trait_category(
         cls,
         base_traits,
@@ -1351,6 +1352,13 @@ class HasTraits(CHasTraits):
     ):
         # Update the class and each of the existing subclasses:
         for subclass in [cls] + cls.trait_subclasses(True):
+
+            # The list of subclasses may include other Category
+            # subclasses. Those don't have the full complement of
+            # special dictionary attributes (ClassTraits and friends),
+            # so we shouldn't update them.
+            if BaseTraits not in subclass.__dict__:
+                continue
 
             # Merge the 'base_traits':
             subclass_traits = getattr(subclass, BaseTraits)
@@ -1404,12 +1412,11 @@ class HasTraits(CHasTraits):
                 for name, value in content.items():
                     base_ve_content.setdefault(name, value)
 
-    _add_trait_category = classmethod(_add_trait_category)
-
     # ---------------------------------------------------------------------------
     #  Sets a trait notification dispatch handler:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def set_trait_dispatch_handler(cls, name, klass, override=False):
         """ Sets a trait notification dispatch handler.
         """
@@ -1428,12 +1435,11 @@ class HasTraits(CHasTraits):
             "%s is not a subclass of TraitChangeNotifyWrapper." % klass
         )
 
-    set_trait_dispatch_handler = classmethod(set_trait_dispatch_handler)
-
     # ---------------------------------------------------------------------------
     #  Returns the immediate (or all) subclasses of this class:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def trait_subclasses(cls, all=False):
         """ Returns a list of the immediate (or all) subclasses of this class.
 
@@ -1448,16 +1454,13 @@ class HasTraits(CHasTraits):
             return cls.__subclasses__()
         return cls._trait_subclasses([])
 
-    trait_subclasses = classmethod(trait_subclasses)
-
+    @classmethod
     def _trait_subclasses(cls, subclasses):
         for subclass in cls.__subclasses__():
             if subclass not in subclasses:
                 subclasses.append(subclass)
                 subclass._trait_subclasses(subclasses)
         return subclasses
-
-    _trait_subclasses = classmethod(_trait_subclasses)
 
     # ---------------------------------------------------------------------------
     #  Returns whether the object implements a specified traits interface:
@@ -2085,6 +2088,7 @@ class HasTraits(CHasTraits):
             self,
         )
 
+    @classmethod
     def class_trait_view(cls, name=None, view_element=None):
         return cls._trait_view(
             name,
@@ -2095,12 +2099,11 @@ class HasTraits(CHasTraits):
             None,
         )
 
-    class_trait_view = classmethod(class_trait_view)
-
     # ---------------------------------------------------------------------------
     #  Gets or sets a ViewElement associated with an object's class:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def _trait_view(
         cls,
         name,
@@ -2173,8 +2176,6 @@ class HasTraits(CHasTraits):
 
         return View(trait_selector_f(), buttons=["OK", "Cancel"])
 
-    _trait_view = classmethod(_trait_view)
-
     # ---------------------------------------------------------------------------
     #  Return the default traits view/name:
     # ---------------------------------------------------------------------------
@@ -2188,12 +2189,11 @@ class HasTraits(CHasTraits):
     #  Return the default traits view/name:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def class_default_traits_view(cls):
         """ Returns the name of the default traits view for the class.
         """
         return DefaultTraitsView
-
-    class_default_traits_view = classmethod(class_default_traits_view)
 
     # ---------------------------------------------------------------------------
     #  Gets the list of names of ViewElements associated with the object's
@@ -2236,6 +2236,7 @@ class HasTraits(CHasTraits):
         """
         return self.__class__.class_trait_view_elements()
 
+    @classmethod
     def class_trait_view_elements(cls):
         """ Returns the ViewElements object associated with the class.
 
@@ -2243,8 +2244,6 @@ class HasTraits(CHasTraits):
         associated with the class.
         """
         return cls.__dict__[ViewTraits]
-
-    class_trait_view_elements = classmethod(class_trait_view_elements)
 
     # ---------------------------------------------------------------------------
     #  Configure the object's traits:
@@ -2370,6 +2369,7 @@ class HasTraits(CHasTraits):
         names.sort()
         return names
 
+    @classmethod
     def class_editable_traits(cls):
         """Returns an alphabetically sorted list of the names of non-event
         trait attributes associated with the current class.
@@ -2378,21 +2378,18 @@ class HasTraits(CHasTraits):
         names.sort()
         return names
 
-    class_editable_traits = classmethod(class_editable_traits)
-
     def visible_traits(self):
         """Returns an alphabetically sorted list of the names of non-event
         trait attributes associated with the current object, that should be GUI visible
         """
         return self.trait_names(type=not_event, visible=not_false)
 
+    @classmethod
     def class_visible_traits(cls):
         """Returns an alphabetically sorted list of the names of non-event
         trait attributes associated with the current class, that should be GUI visible
         """
         return cls.class_trait_names(type=not_event, visible=not_false)
-
-    class_visible_traits = classmethod(class_visible_traits)
 
     # ---------------------------------------------------------------------------
     #  Pretty print the traits of an object:
@@ -3238,6 +3235,7 @@ class HasTraits(CHasTraits):
     #  Return a dictionary of all traits which match a set of metadata:
     # ---------------------------------------------------------------------------
 
+    @classmethod
     def class_traits(cls, **metadata):
         """Returns a dictionary containing the definitions of all of the trait
         attributes of the class that match the set of *metadata* criteria.
@@ -3288,8 +3286,6 @@ class HasTraits(CHasTraits):
 
         return result
 
-    class_traits = classmethod(class_traits)
-
     # ---------------------------------------------------------------------------
     #  Return a list of all trait names which match a set of metadata:
     # ---------------------------------------------------------------------------
@@ -3310,6 +3306,7 @@ class HasTraits(CHasTraits):
         """
         return list(self.traits(**metadata).keys())
 
+    @classmethod
     def class_trait_names(cls, **metadata):
         """Returns a list of the names of all trait attributes whose definitions
         match the set of *metadata* criteria specified.
@@ -3325,8 +3322,6 @@ class HasTraits(CHasTraits):
         names of the matching trait attributes, not the trait definitions.
         """
         return list(cls.class_traits(**metadata).keys())
-
-    class_trait_names = classmethod(class_trait_names)
 
     # ---------------------------------------------------------------------------
     #  Explicitly sets the value of a cached property:
