@@ -158,14 +158,17 @@ class CTrait(ctraits.cTrait):
         if editor is not None and isinstance(editor, EditorFactory):
             return editor
 
+        if editor is None and self.handler is None:
+            editor = TextEditor
+            self.editor = editor
+            return editor
+
+        if handler is not None:
+            editor = handler.get_editor(self)
+
         if editor is None:
 
-            if handler is not None:
-                editor = handler.get_editor(self)
-
-            if editor is None:
-
-                editor = TextEditor
+            editor = TextEditor
 
         if not isinstance(editor, EditorFactory):
             args = ()
