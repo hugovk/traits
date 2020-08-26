@@ -154,9 +154,9 @@ class CTrait(ctraits.cTrait):
         from traitsui.api import EditorFactory, TextEditor
 
         editor = self.editor
+        handler = self.handler
         if editor is None:
 
-            handler = self.handler
             if handler is not None:
                 editor = handler.get_editor(self)
 
