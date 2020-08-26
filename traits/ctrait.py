@@ -153,24 +153,19 @@ class CTrait(ctraits.cTrait):
         """
         from traitsui.api import EditorFactory
 
-        # See if we have an editor:
         editor = self.editor
         if editor is None:
 
-            # Else see if the trait handler has an editor:
             handler = self.handler
             if handler is not None:
                 editor = handler.get_editor(self)
 
-            # If not, give up and use a default text editor:
             if editor is None:
                 from traitsui.api import TextEditor
 
                 editor = TextEditor
 
-        # If the result is not an EditorFactory:
         if not isinstance(editor, EditorFactory):
-            # Then it should be a factory for creating them:
             args = ()
             traits = {}
             if type(editor) in SequenceTypes:
@@ -186,10 +181,8 @@ class CTrait(ctraits.cTrait):
                         editor = item
             editor = editor(*args, **traits)
 
-        # Cache the result:
         self.editor = editor
 
-        # Return the resulting EditorFactory object:
         return editor
 
     def get_help(self, full=True):
