@@ -153,39 +153,33 @@ class CTrait(ctraits.cTrait):
         """
         from traitsui.api import EditorFactory, TextEditor
 
-        editor = self.editor
-        handler = self.handler
-        if editor is not None and isinstance(editor, EditorFactory):
-            return editor
+        if self.editor is not None and isinstance(self.editor, EditorFactory):
+            return self.editor
 
         # Are we missing a case here where editor is not None
         # BUT isinstance(editor, EditorFactory) is False!
         # in which case we need to coerce editor how we want to!
 
-        if editor is None and self.handler is None:
-            editor = TextEditor
-            self.editor = editor
-            return editor
+        if self.editor is None and self.handler is None:
+            self.editor = TextEditor
+            return self.editor
 
-        editor = handler.get_editor(self)
+        self.editor = self.handler.get_editor(self)
 
-        if editor is None:
-            editor = TextEditor
-            self.editor = editor
-            return editor
+        if self.editor is None:
+            self.editor = TextEditor
+            return self.editor
 
-        if isinstance(editor, EditorFactory):
-            self.editor = editor
-            return editor
+        if isinstance(self.editor, EditorFactory):
+            return self.editor
 
         args = ()
         traits = {}
-        if type(editor) not in SequenceTypes:
-            editor = editor(*args, **kwargs)
-            self.editor = editor
-            return editor
+        if type(self.editor) not in SequenceTypes:
+            self.editor = self.editor(*args, **kwargs)
+            return self.editor
 
-        for item in editor[:]:
+        for item in self.editor[:]:
             if type(item) in SequenceTypes:
                 args = tuple(item)
             elif isinstance(item, dict):
@@ -194,12 +188,9 @@ class CTrait(ctraits.cTrait):
                     traits = traits.copy()
                     traits["trait"] = self
             else:
-                editor = item
-        editor = editor(*args, **traits)
-
-        self.editor = editor
-
-        return editor
+                self.editor = item
+        self.editor = self.editor(*args, **traits)
+        return self.editor
 
     def get_help(self, full=True):
         """ Returns the help text for a trait.
