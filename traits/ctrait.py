@@ -163,8 +163,7 @@ class CTrait(ctraits.cTrait):
             self.editor = editor
             return editor
 
-        if handler is not None:
-            editor = handler.get_editor(self)
+        editor = handler.get_editor(self)
 
         if editor is None:
 
