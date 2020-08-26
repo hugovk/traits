@@ -180,17 +180,21 @@ class CTrait(ctraits.cTrait):
 
         args = ()
         traits = {}
-        if type(editor) in SequenceTypes:
-            for item in editor[:]:
-                if type(item) in SequenceTypes:
-                    args = tuple(item)
-                elif isinstance(item, dict):
-                    traits = item
-                    if traits.get("trait", 0) is None:
-                        traits = traits.copy()
-                        traits["trait"] = self
-                else:
-                    editor = item
+        if type(editor) not in SequenceTypes:
+            editor = editor(*args, **kwargs)
+            self.editor = editor
+            return editor
+
+        for item in editor[:]:
+            if type(item) in SequenceTypes:
+                args = tuple(item)
+            elif isinstance(item, dict):
+                traits = item
+                if traits.get("trait", 0) is None:
+                    traits = traits.copy()
+                    traits["trait"] = self
+            else:
+                editor = item
         editor = editor(*args, **traits)
 
         self.editor = editor
