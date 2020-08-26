@@ -166,8 +166,9 @@ class CTrait(ctraits.cTrait):
         editor = handler.get_editor(self)
 
         if editor is None:
-
             editor = TextEditor
+            self.editor = editor
+            return editor
 
         if not isinstance(editor, EditorFactory):
             args = ()
