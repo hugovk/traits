@@ -151,7 +151,7 @@ class CTrait(ctraits.cTrait):
     def get_editor(self):
         """ Returns the user interface editor associated with the trait.
         """
-        from traitsui.api import EditorFactory
+        from traitsui.api import EditorFactory, TextEditor
 
         editor = self.editor
         if editor is None:
@@ -161,7 +161,6 @@ class CTrait(ctraits.cTrait):
                 editor = handler.get_editor(self)
 
             if editor is None:
-                from traitsui.api import TextEditor
 
                 editor = TextEditor
 
