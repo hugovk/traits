@@ -158,6 +158,10 @@ class CTrait(ctraits.cTrait):
         if editor is not None and isinstance(editor, EditorFactory):
             return editor
 
+        # Are we missing a case here where editor is not None
+        # BUT isinstance(editor, EditorFactory) is False!
+        # in which case we need to coerce editor how we want to!
+
         if editor is None and self.handler is None:
             editor = TextEditor
             self.editor = editor
