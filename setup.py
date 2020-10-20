@@ -331,8 +331,7 @@ setuptools.setup(
     ext_modules=[setuptools.Extension("traits.ctraits", ["traits/ctraits.c"])],
     package_data={
         "traits": [
-            "examples/introduction/*",
-            "examples/introduction/*/*",
+            "examples/introduction/images/*",
         ],
         "traits.tests": [
             "test-data/historical-pickles/README",
