@@ -12,8 +12,10 @@ import os
 import unittest
 
 from traits.examples._entry_point import introduction
+from traits.testing.optional_dependencies import requires_pkg_resources
 
 
+@requires_pkg_resources
 class TestExampleEntryPoint(unittest.TestCase):
     """ Test entry points contributed for etsdemo."""
 
